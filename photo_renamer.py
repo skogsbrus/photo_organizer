@@ -1,45 +1,55 @@
 #!/usr/bin/env python3
 
+import sys
 import argparse
 from pathlib import Path
-import glob
-from PIL import Image
+import exifread
+from itertools import product
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--suffix', type=str, default='.jpg', help='Suffix (file ending) which the affected files must end with')
-    parser.add_argument('--prefix', type=str, default='', help='Prefix which the affected files must begin with')
-    parser.add_argument('--dir', type=Path, help='Directory path')
-    parser.add_argument('--exclude', type=Path, help='Ignore this path')
+    parser.add_argument('--suffix',     type=str, nargs='+', default=['.jpg', '.raw'], help='Suffix (file ending) which the affected files must end with')
+    parser.add_argument('--prefix',     type=str, nargs='+', default=[''], help='Prefix which the affected files must begin with')
+    parser.add_argument('--dir',        type=Path, required=True, help='Directory path')
+    parser.add_argument('--exclude',    type=str, nargs='+', help='Ignore paths matching')
     return parser.parse_args()
 
 
-def get_date_taken(path: Path):
+def get_exif_tag(path: Path, tag:str='Image DateTime'):
     try:
-        temp = Image.open(path)._getexif()[36867]
-        temp = temp.replace(' ', '_')
-        temp = temp.replace(':', '.')
-    except TypeError:
-        return None
+        with open(path, 'rb') as img:
+            tags = exifread.process_file(img)
+        date = str(tags[tag])
+        date = date.replace(' ', '_')
+        date = date.replace(':', '.')
     except KeyError:
         return None
-    except OSError:
-        return None
-    return Path(temp + path.suffix)
+    return Path(date + path.suffix)
 
 if __name__ == "__main__":
     args = get_args()
-    patterns = ('*' + args.suffix.lower(), '*' + args.suffix.upper())
-    print(patterns)
+    suffices = []
+    prefices = args.prefix
+    for suf in args.suffix:
+        suffices.append(suf.lower())
+        suffices.append(suf.upper())
+    print(f'Selecting files that start with any of {args.prefix} and end with any of {suffices}')
+    if args.exclude:
+        print(f'Ignoring all files in directories {args.exclude}')
+    proceed = input('Proceed? (y/n) ')
+    if proceed != 'y':
+        sys.exit(0)
     selected = []
-    for imgs in patterns:
-        selected.extend(glob.glob(imgs))
-    selected = map(Path, selected)
+    for prefix, suffix in product(prefices, suffices):
+        selected.extend(args.dir.glob(f'**/{prefix}*{suffix}'))
     selected = list(filter(lambda f: not f.is_dir(), selected))
-    tups = list(zip(selected, map(get_date_taken, selected)))
+    if args.exclude:
+        selected = list(filter(lambda img: not any([ex in str(img.parent.resolve()) for ex in args.exclude]), selected))
+    tups = list(zip(selected, map(get_exif_tag, selected)))
     for old, new in tups:
         if new:
             print(f'renaming {old} -> {new}')
             old.rename(new)
         else:
+            pass
             print(f'no date found for {old}')
