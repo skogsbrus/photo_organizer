@@ -25,7 +25,7 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def get_exif_tag(path: Path, tag:str='Image DateTime'):
+def get_exif_tag(path: Path, tag:str='EXIF DateTimeOriginal'):
     with open(path, 'rb') as img:
         tags = exifread.process_file(img)
     try:
