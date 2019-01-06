@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from pprint import pprint
+import concurrent.futures
 import sys
 import argparse
 import logging as log
@@ -16,22 +17,30 @@ import re
 from os.path import splitext
 from pyexifinfo import get_json
 
-
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exclude',    type=str,   nargs='+',                                                 help='Exclude paths containing any of these strings')
-    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.png', '.jpg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
-    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                              help='Filter on file name prefix')
-    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                  help='Output  directory path')
-    parser.add_argument('--dir',        type=Path,  required=True,                                             help='Working directory path')
-    parser.add_argument('--log',        type=Path,                                                             help='Log file path')
+    parser.add_argument('--exclude',    type=str,   nargs='+',                                                                  help='Exclude paths containing any of these strings')
+    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
+    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                                               help='Filter on file name prefix')
+    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                                   help='Output  directory path')
+    parser.add_argument('--dir',        type=Path,  required=True,                                                              help='Working directory path')
+    parser.add_argument('--log',        type=Path,                                                                              help='Log file path')
     return parser.parse_args()
 
 
 def setup_args(args):
-    assert args.out.parent != args.dir, 'Output directory should not be placed inside the directory being scanned'
+    assert args.out.parent != args.dir, 'Output directory should not be put inside the input directory'
     if args.log:
         setup_log_file(args.log)
+
+    global out_dir, failed_dir, prefices, suffices, exclude
+    out_dir = create_dir(args.out)
+    failed_dir = create_dir(out_dir/'failed')
+    suffices = []
+    prefices = args.prefix
+    for suf in args.suffix:
+        suffices.extend([suf.lower(), suf.upper()])
+    exclude = args.exclude
 
 
 def setup_log_file(filename):
@@ -57,9 +66,7 @@ def parse_date_from_metadata(path:Path, keys:list):
     for key in keys:
         if key in metadata:
             return str(metadata[key])
-    print('Did not find any Image metadata for', path.name)
-    pprint(metadata)
-    sys.exit()
+    log.info(f'Did not find any Image metadata for {path.name}')
     raise KeyError
 
 
@@ -102,18 +109,27 @@ def prompt_proceed(msg='Proceed? (y/n)', exit=True):
     return True
 
 
-def create_dirs(base_dir, failed_dirname='failed'):
-    failed_dir = base_dir/Path(failed_dirname)
+def create_dir(directory:Path):
     try:
-        base_dir.mkdir()
-        failed_dir.mkdir()
+        directory.mkdir()
     except FileExistsError:
         pass
-    return base_dir, failed_dir
+    return directory
 
 
-def rename_file(file, new_name, new_dir, failed_dir):
-    directory = new_dir/Path(new_name[:4]) if new_name else failed_dir/Path(file.parent.name)
+def rename_file(filepath=str):
+    file = Path(filepath)
+    if file.is_dir():
+        return
+    if not any(file.name.startswith(prefix) for prefix in prefices):
+        return
+    if not any(file.name.endswith(suffix) for suffix in suffices):
+        return
+    if any([ex in str(file.parent.resolve()) for ex in args.exclude]):
+        return
+
+    new_name = get_new_name(file)
+    directory = out_dir/Path(new_name[:4]) if new_name else failed_dir/Path(file.parent.name)
 
     if not directory.is_dir():
         directory.mkdir()
@@ -125,29 +141,17 @@ def rename_file(file, new_name, new_dir, failed_dir):
     if new_name:
         # TODO check for already existing
         file_copy.rename(directory/new_name)
-    log.info(f'copied {file.resolve()} -> {(directory/new_name).resolve()}')
+        log.info(f'copied {file.resolve()} -> {(directory/new_name).resolve()}')
 
 
 if __name__ == "__main__":
     args = get_args()
     setup_args(args)
-    suffices = []
-    prefices = args.prefix
-    for suf in args.suffix:
-        suffices.extend([suf.lower(), suf.upper()])
-
-    # show parameter options
     print(f'Selecting files that start with any of {prefices} and end with any of {suffices}')
     if args.exclude:
-        print(f'Ignoring all files in directories {args.exclude}')
-    #prompt_proceed()
-    new_dir, failed_dir = create_dirs(args.out)
+        print(f'Ignoring all files in directories {exclude}')
+    prompt_proceed()
 
-    for prefix, suffix in tqdm(product(prefices, suffices)):
-        for file in tqdm(glob.iglob(f'{args.dir}/**/{prefix}*{suffix}', recursive=True)):
-            file = Path(file)
-            if file.is_dir():
-                continue
-            if not args.exclude or args.exclude and not any([ex in str(file.parent.resolve()) for ex in args.exclude]):
-                file, new_name = (file, get_new_name(file))
-                rename_file(file, new_name, new_dir, failed_dir)
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        files = glob.iglob(f'{args.dir}/**/*', recursive=True)
+        executor.map(rename_file, files)
