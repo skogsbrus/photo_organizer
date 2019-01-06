@@ -129,7 +129,7 @@ def rename_file(filepath=str):
         return
 
     new_name = get_new_name(file)
-    directory = out_dir/Path(new_name[:4]) if new_name else failed_dir/Path(file.parent.name)
+    directory = out_dir/Path(new_name[:4]) if new_name else failed_dir/(str(file.parent.resolve()).replace('/','_'))
 
     if not directory.is_dir():
         directory.mkdir()
