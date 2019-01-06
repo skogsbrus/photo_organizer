@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from pprint import pprint
 import sys
 import argparse
 import logging as log
@@ -10,34 +11,77 @@ import exifread
 from itertools import product
 from tqdm import tqdm
 from datetime import datetime
+from dateutil.parser import parse
+import re
+from os.path import splitext
+from pyexifinfo import get_json
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.png', '.jpg', '.raw', '.mov'],  help='Filter on suffix')
-    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                      help='Filter on prefix')
-    parser.add_argument('--exclude',    type=str,   nargs='+',                                         help='Exclude paths containing any of these strings')
-    parser.add_argument('--dir',        type=Path,  required=True,                                     help='Working directory path')
-    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',          help='Output  directory path')
-    parser.add_argument('--logfile',    type=Path,                                                     help='Log file path')
+    parser.add_argument('--exclude',    type=str,   nargs='+',                                                 help='Exclude paths containing any of these strings')
+    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.png', '.jpg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
+    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                              help='Filter on file name prefix')
+    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                  help='Output  directory path')
+    parser.add_argument('--dir',        type=Path,  required=True,                                             help='Working directory path')
+    parser.add_argument('--log',        type=Path,                                                             help='Log file path')
     return parser.parse_args()
+
+
+def setup_args(args):
+    assert args.out.parent != args.dir, 'Output directory should not be placed inside the directory being scanned'
+    if args.log:
+        setup_log_file(args.log)
 
 
 def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def get_date(path: Path, exif_tag:str='EXIF DateTimeOriginal'):
-    with open(path, 'rb') as img:
-        tags = exifread.process_file(img)
-    try:
-        return str(tags[exif_tag])
-    except KeyError:
-        if 'MOV' in path.name:
-            # .mov files don't have exif tags but it seems
-            # that the original creation date is preserved in st_mtime
-            return str(datetime.fromtimestamp(int(path.stat().st_mtime)))
-        return None
+def parse_filename_to_date(filename:str):
+    filename = splitext(filename)[0] # remove file extension
+    only_numbers = re.sub('[^0-9]', '', filename)
+    if len(only_numbers) != 14: # length of YYYYMMDDHHMMSS
+        raise ValueError
+    return str(parse(only_numbers))
+
+
+def parse_filestat_to_date(path:Path):
+    return str(datetime.fromtimestamp(int(path.stat().st_mtime)))
+
+
+def parse_date_from_metadata(path:Path, keys:list):
+    with open(path, 'rb') as f:
+        metadata = get_json(path)[0]
+
+    for key in keys:
+        if key in metadata:
+            return str(metadata[key])
+    print('Did not find any Image metadata for', path.name)
+    pprint(metadata)
+    sys.exit()
+    raise KeyError
+
+
+def get_date(path: Path):
+    metadata_keys = [
+        'EXIF:DateTimeOriginal',
+        'MakerNotes:DateTimeOriginal',
+        'QuickTime:CreateDate'
+    ]
+
+    parse_funcs = [
+        lambda: parse_date_from_metadata(path, metadata_keys),
+        #lambda: parse_filename_to_date(path.name),
+        #lambda: parse_filestat_to_date(path)
+    ]
+
+    for func in parse_funcs:
+        try:
+            return func()
+        except (KeyError, ValueError, OverflowError):
+            pass
+    return None
 
 
 def get_new_name(path: Path):
@@ -68,10 +112,6 @@ def create_dirs(base_dir, failed_dirname='failed'):
     return base_dir, failed_dir
 
 
-def assert_different_dirs(base_dir, out_dir):
-    assert out_dir.parent != base_dir, 'Output directory should not be placed inside the directory being scanned'
-
-
 def rename_file(file, new_name, new_dir, failed_dir):
     directory = new_dir/Path(new_name[:4]) if new_name else failed_dir/Path(file.parent.name)
 
@@ -83,26 +123,24 @@ def rename_file(file, new_name, new_dir, failed_dir):
         log.info(f'copy for file {file} failed since it was already in the destination folder {directory}')
     file_copy = directory/file.name
     if new_name:
+        # TODO check for already existing
         file_copy.rename(directory/new_name)
-    log.info(f'copied {file.resolve()} -> {(directory/file).resolve()}')
+    log.info(f'copied {file.resolve()} -> {(directory/new_name).resolve()}')
 
 
 if __name__ == "__main__":
     args = get_args()
-    assert_different_dirs(args.dir, args.out)
-    if args.logfile:
-        setup_log_file(args.logfile)
+    setup_args(args)
     suffices = []
     prefices = args.prefix
     for suf in args.suffix:
-        suffices.append(suf.lower())
-        suffices.append(suf.upper())
+        suffices.extend([suf.lower(), suf.upper()])
 
     # show parameter options
-    print(f'Selecting files that start with any of {args.prefix} and end with any of {suffices}')
+    print(f'Selecting files that start with any of {prefices} and end with any of {suffices}')
     if args.exclude:
         print(f'Ignoring all files in directories {args.exclude}')
-    prompt_proceed()
+    #prompt_proceed()
     new_dir, failed_dir = create_dirs(args.out)
 
     for prefix, suffix in tqdm(product(prefices, suffices)):
