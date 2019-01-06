@@ -20,7 +20,7 @@ from pyexifinfo import get_json
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exclude',    type=str,   nargs='+',                                                                  help='Exclude paths containing any of these strings')
-    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
+    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
     parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                                               help='Filter on file name prefix')
     parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                                   help='Output  directory path')
     parser.add_argument('--dir',        type=Path,  required=True,                                                              help='Working directory path')
@@ -60,8 +60,7 @@ def parse_filestat_to_date(path:Path):
 
 
 def parse_date_from_metadata(path:Path, keys:list):
-    with open(path, 'rb') as f:
-        metadata = get_json(path)[0]
+    metadata = get_json(path)[0]
 
     for key in keys:
         if key in metadata:
@@ -101,12 +100,9 @@ def get_new_name(path: Path):
         return None
 
 
-def prompt_proceed(msg='Proceed? (y/n)', exit=True):
+def prompt_proceed(msg='Proceed? (y/n)'):
     if input(msg + ' ') != 'y':
-        if exit:
-            sys.exit(0)
-        return False
-    return True
+        sys.exit(0)
 
 
 def create_dir(directory:Path):
@@ -115,6 +111,10 @@ def create_dir(directory:Path):
     except FileExistsError:
         pass
     return directory
+
+
+def files_equal(f1:Path, f2:Path):
+    return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
 def rename_file(filepath=str):
@@ -133,13 +133,18 @@ def rename_file(filepath=str):
 
     if not directory.is_dir():
         directory.mkdir()
-    try:
-        copy(file, directory)
-    except SameFileError:
-        log.info(f'copy for file {file} failed since it was already in the destination folder {directory}')
+    copy(file, directory)
     file_copy = directory/file.name
     if new_name:
-        # TODO check for already existing
+        if (directory/new_name).exists() and directory/new_name != file_copy:
+            if files_equal(directory/new_name, file_copy):
+                file_copy.unlink()
+                log.info(f'removed duplicate file {file_copy.resolve()}')
+            else:
+                new_name = splitext(new_name)
+                file_copy.rename(directory/(new_name[0] + '_collision' + new_name[1]))
+                log.info(f'name collision averted in folder {file_copy.parent.resolve()}')
+            return
         file_copy.rename(directory/new_name)
         log.info(f'copied {file.resolve()} -> {(directory/new_name).resolve()}')
 
