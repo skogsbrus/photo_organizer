@@ -8,19 +8,18 @@ import logging as log
 import glob
 from pathlib import Path
 from shutil import copy, SameFileError
-from dateutil import parse
 import re
 from os.path import splitext
 from pyexifinfo import get_json
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exclude',    type=str,   nargs='+',                                                                  help='Exclude paths containing any of these strings')
+    parser.add_argument('--exclude',    type=str,   nargs='+',                                                                          help='Exclude paths containing any of these strings')
     parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
-    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                                               help='Filter on file name prefix')
-    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                                   help='Output  directory path')
-    parser.add_argument('--dir',        type=Path,  required=True,                                                              help='Working directory path')
-    parser.add_argument('--log',        type=Path,                                                                              help='Log file path')
+    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                                                       help='Filter on file name prefix')
+    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                                           help='Output  directory path')
+    parser.add_argument('--dir',        type=Path,  required=True,                                                                      help='Input directory path')
+    parser.add_argument('--log',        type=Path,                                                                                      help='Log file path')
     return parser.parse_args()
 
 
@@ -43,12 +42,12 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def parse_filename_to_date(filename:str) -> str:
-    filename, _ = splitext(filename) # remove file extension
-    only_numbers = re.sub('[^0-9]', '', filename)
-    if len(only_numbers) != 14: # length of YYYYMMDDHHMMSS
-        raise ValueError
-    return str(dateutil.parse(only_numbers))
+# def parse_filename_to_date(filename:str) -> str:
+#     filename, _ = splitext(filename) # remove file extension
+#     only_numbers = re.sub('[^0-9]', '', filename)
+#     if len(only_numbers) != 14: # length of YYYYMMDDHHMMSS
+#         raise ValueError
+#     return str(dateutil.parse(only_numbers))
 
 
 def parse_date_from_metadata(path:Path, keys:list) -> str:
@@ -69,7 +68,6 @@ def get_date(path: Path) -> str:
 
     parse_funcs = [
         lambda: parse_date_from_metadata(path, metadata_keys),
-        lambda: parse_filename_to_date(path.name),
     ]
 
     for func in parse_funcs:
@@ -80,14 +78,12 @@ def get_date(path: Path) -> str:
     return None
 
 
-def get_new_name(path: Path) -> str:
-    date = get_date(path)
+def get_new_name(file: Path) -> str:
+    date = get_date(file)
     if date:
         date = date.replace(' ', '_')
         date = date.replace(':', '.')
-        return date + path.suffix.lower()
-    else:
-        return None
+        return date + file.suffix.lower()
 
 
 def prompt_proceed(msg='Proceed? (y/n)'):
@@ -95,7 +91,7 @@ def prompt_proceed(msg='Proceed? (y/n)'):
         sys.exit(0)
 
 
-def create_dir(directory:Path):
+def create_dir(directory:Path) -> Path:
     try:
         directory.mkdir()
     except FileExistsError:
@@ -103,7 +99,7 @@ def create_dir(directory:Path):
     return directory
 
 
-def files_equal(f1:Path, f2:Path):
+def files_equal(f1:Path, f2:Path) -> bool:
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
@@ -115,32 +111,36 @@ def copy_and_rename_file(filepath=str):
         return
     if not any(file.name.endswith(suffix) for suffix in suffices):
         return
-    if any([ex in str(file.parent.resolve()) for ex in args.exclude]):
+    if any([ex in str(file.resolve()) for ex in args.exclude]):
         return
 
     new_name = get_new_name(file)
 
     if new_name:
-        target_directory = out_dir/Path(new_name[:4])
+        year = new_name[:4]
+        target_directory = out_dir/Path(year)
     else:
-        target_directory = failed_dir/(str(file.parent.resolve()).replace('/','_'))
+        subfolder_name = str(file.parent.resolve()).replace('/','_')
+        target_directory = failed_dir/(subfolder_name)
+        new_name = file.name
 
     if not target_directory.is_dir():
         target_directory.mkdir()
 
     # check if duplicate file already exists in target directory
-    if new_name and (target_directory/new_name).exists():
+    if (target_directory/new_name).exists():
         if not files_equal(target_directory/new_name, file):
             new_filename, extension = splitext(new_name)
             new_name = f'{new_filename}_collision{extension}'
         else:
-            # file is duplicate of already existing file --> skip this file
-            log.info(f'skipped copying {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
+            log.info(f'skip {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
             return
+
     copy(file, target_directory)
-    copied_file = target_directory/file.name
-    copied_file.rename(target_directory/new_name)
-    log.info(f'copied {file.resolve()} -> {(target_directory/new_name).resolve()}')
+    if file.name != new_name:
+        copied_file = target_directory/file.name
+        copied_file.rename(target_directory/new_name)
+    log.info(f'copy {file.resolve()} -> {(target_directory/new_name).resolve()}')
 
 
 if __name__ == "__main__":
