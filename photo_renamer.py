@@ -8,11 +8,7 @@ import logging as log
 import glob
 from pathlib import Path
 from shutil import copy, SameFileError
-import exifread
-from itertools import product
-from tqdm import tqdm
 from datetime import datetime
-from dateutil.parser import parse
 import re
 from os.path import splitext
 from pyexifinfo import get_json
@@ -55,17 +51,12 @@ def parse_filename_to_date(filename:str):
     return str(parse(only_numbers))
 
 
-def parse_filestat_to_date(path:Path):
-    return str(datetime.fromtimestamp(int(path.stat().st_mtime)))
-
-
 def parse_date_from_metadata(path:Path, keys:list):
     metadata = get_json(path)[0]
 
     for key in keys:
         if key in metadata:
             return str(metadata[key])
-    log.info(f'Did not find any Image metadata for {path.name}')
     raise KeyError
 
 
@@ -78,8 +69,7 @@ def get_date(path: Path):
 
     parse_funcs = [
         lambda: parse_date_from_metadata(path, metadata_keys),
-        #lambda: parse_filename_to_date(path.name),
-        #lambda: parse_filestat_to_date(path)
+        lambda: parse_filename_to_date(path.name),
     ]
 
     for func in parse_funcs:
@@ -117,7 +107,7 @@ def files_equal(f1:Path, f2:Path):
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
-def rename_file(filepath=str):
+def copy_and_rename_file(filepath=str):
     file = Path(filepath)
     if file.is_dir():
         return
@@ -129,24 +119,28 @@ def rename_file(filepath=str):
         return
 
     new_name = get_new_name(file)
-    directory = out_dir/Path(new_name[:4]) if new_name else failed_dir/(str(file.parent.resolve()).replace('/','_'))
 
-    if not directory.is_dir():
-        directory.mkdir()
-    copy(file, directory)
-    file_copy = directory/file.name
     if new_name:
-        if (directory/new_name).exists() and directory/new_name != file_copy:
-            if files_equal(directory/new_name, file_copy):
-                file_copy.unlink()
-                log.info(f'removed duplicate file {file_copy.resolve()}')
-            else:
-                new_name = splitext(new_name)
-                file_copy.rename(directory/(new_name[0] + '_collision' + new_name[1]))
-                log.info(f'name collision averted in folder {file_copy.parent.resolve()}')
+        target_directory = out_dir/Path(new_name[:4])
+    else:
+        target_directory = failed_dir/(str(file.parent.resolve()).replace('/','_'))
+
+    if not target_directory.is_dir():
+        target_directory.mkdir()
+
+    # check if duplicate file already exists in target directory
+    if new_name and (target_directory/new_name).exists():
+        if not files_equal(target_directory/new_name, file):
+            new_filename, extension = splitext(new_name)
+            new_name = f'{new_filename}_collision{extension}'
+        else:
+            # file is duplicate of already existing file --> skip this file
+            log.info(f'skipped copying {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
             return
-        file_copy.rename(directory/new_name)
-        log.info(f'copied {file.resolve()} -> {(directory/new_name).resolve()}')
+    copy(file, target_directory)
+    copied_file = target_directory/file.name
+    copied_file.rename(target_directory/new_name)
+    log.info(f'copied {file.resolve()} -> {(target_directory/new_name).resolve()}')
 
 
 if __name__ == "__main__":
@@ -159,4 +153,4 @@ if __name__ == "__main__":
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
-        executor.map(rename_file, files)
+        executor.map(copy_and_rename_file, files)
