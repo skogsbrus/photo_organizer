@@ -8,7 +8,7 @@ import logging as log
 import glob
 from pathlib import Path
 from shutil import copy, SameFileError
-from datetime import datetime
+from dateutil import parse
 import re
 from os.path import splitext
 from pyexifinfo import get_json
@@ -43,15 +43,15 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def parse_filename_to_date(filename:str):
-    filename = splitext(filename)[0] # remove file extension
+def parse_filename_to_date(filename:str) -> str:
+    filename, _ = splitext(filename) # remove file extension
     only_numbers = re.sub('[^0-9]', '', filename)
     if len(only_numbers) != 14: # length of YYYYMMDDHHMMSS
         raise ValueError
-    return str(parse(only_numbers))
+    return str(dateutil.parse(only_numbers))
 
 
-def parse_date_from_metadata(path:Path, keys:list):
+def parse_date_from_metadata(path:Path, keys:list) -> str:
     metadata = get_json(path)[0]
 
     for key in keys:
@@ -60,7 +60,7 @@ def parse_date_from_metadata(path:Path, keys:list):
     raise KeyError
 
 
-def get_date(path: Path):
+def get_date(path: Path) -> str:
     metadata_keys = [
         'EXIF:DateTimeOriginal',
         'MakerNotes:DateTimeOriginal',
@@ -80,7 +80,7 @@ def get_date(path: Path):
     return None
 
 
-def get_new_name(path: Path):
+def get_new_name(path: Path) -> str:
     date = get_date(path)
     if date:
         date = date.replace(' ', '_')
