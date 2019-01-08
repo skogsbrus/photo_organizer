@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from pprint import pprint
 import concurrent.futures
 import sys
 import argparse
@@ -40,14 +39,6 @@ def setup_args(args):
 
 def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
-
-
-# def parse_filename_to_date(filename:str) -> str:
-#     filename, _ = splitext(filename) # remove file extension
-#     only_numbers = re.sub('[^0-9]', '', filename)
-#     if len(only_numbers) != 14: # length of YYYYMMDDHHMMSS
-#         raise ValueError
-#     return str(dateutil.parse(only_numbers))
 
 
 def parse_date_from_metadata(path:Path, keys:list) -> str:
@@ -131,7 +122,10 @@ def copy_and_rename_file(filepath=str):
     if (target_directory/new_name).exists():
         if not files_equal(target_directory/new_name, file):
             new_filename, extension = splitext(new_name)
-            new_name = f'{new_filename}_collision{extension}'
+            i = 1
+            while (target_directory/new_name).exists():
+                new_name = f'{new_filename}_collision{i}{extension}'
+                i += 1
         else:
             log.info(f'skip {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
             return
@@ -154,3 +148,4 @@ if __name__ == "__main__":
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
         executor.map(copy_and_rename_file, files)
+    log.info('end of main')
