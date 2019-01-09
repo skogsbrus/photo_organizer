@@ -13,7 +13,7 @@ from pyexifinfo import get_json
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exclude',            type=str,   nargs='+',                                                                          help='Exclude paths containing any of these strings')
+    parser.add_argument('--exclude',            type=str,   nargs='+',      default=[],                                                         help='Exclude paths containing any of these strings')
     parser.add_argument('--suffix',             type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
     parser.add_argument('--prefix',             type=str,   nargs='+',      default=[''],                                                       help='Filter on file name prefix')
     parser.add_argument('--out',                type=Path,  required=True,  default='./restructured',                                           help='Output  directory path')
@@ -103,7 +103,7 @@ def filtered_by_arguments(file: Path) -> bool:
         return False
     if not any(file.name.endswith(suffix) for suffix in suffices):
         return False
-    if any([ex in str(file.resolve()) for ex in args.exclude]):
+    if any([ex in str(file.resolve()) for ex in exclude]):
         return False
     return True
 
