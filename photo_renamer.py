@@ -94,15 +94,21 @@ def files_equal(f1:Path, f2:Path) -> bool:
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
+def filtered_by_arguments(file: Path) -> bool:
+    if file.is_dir():
+        return False
+    if not any(file.name.startswith(prefix) for prefix in prefices):
+        return False
+    if not any(file.name.endswith(suffix) for suffix in suffices):
+        return False
+    if any([ex in str(file.resolve()) for ex in args.exclude]):
+        return False
+    return True
+
+
 def copy_and_rename_file(filepath=str):
     file = Path(filepath)
-    if file.is_dir():
-        return
-    if not any(file.name.startswith(prefix) for prefix in prefices):
-        return
-    if not any(file.name.endswith(suffix) for suffix in suffices):
-        return
-    if any([ex in str(file.resolve()) for ex in args.exclude]):
+    if not filtered_by_arguments(file):
         return
 
     new_name = get_new_name(file)
