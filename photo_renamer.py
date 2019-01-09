@@ -13,12 +13,13 @@ from pyexifinfo import get_json
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exclude',    type=str,   nargs='+',                                                                          help='Exclude paths containing any of these strings')
-    parser.add_argument('--suffix',     type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
-    parser.add_argument('--prefix',     type=str,   nargs='+',      default=[''],                                                       help='Filter on file name prefix')
-    parser.add_argument('--out',        type=Path,  required=True,  default='./restructured',                                           help='Output  directory path')
-    parser.add_argument('--dir',        type=Path,  required=True,                                                                      help='Input directory path')
-    parser.add_argument('--log',        type=Path,                                                                                      help='Log file path')
+    parser.add_argument('--exclude',            type=str,   nargs='+',                                                                          help='Exclude paths containing any of these strings')
+    parser.add_argument('--suffix',             type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
+    parser.add_argument('--prefix',             type=str,   nargs='+',      default=[''],                                                       help='Filter on file name prefix')
+    parser.add_argument('--out',                type=Path,  required=True,  default='./restructured',                                           help='Output  directory path')
+    parser.add_argument('--dir',                type=Path,  required=True,                                                                      help='Input directory path')
+    parser.add_argument('--log',                type=Path,                                                                                      help='Log file path')
+    parser.add_argument('--delete-after-copy',  action='store_true',                                                                            help='Delete the original file after it has been copied and renamed OR skipped. BACKUP your input before doing this.')
     return parser.parse_args()
 
 
@@ -27,7 +28,8 @@ def setup_args(args):
     if args.log:
         setup_log_file(args.log)
 
-    global out_dir, failed_dir, prefices, suffices, exclude
+    global out_dir, failed_dir, prefices, suffices, exclude, delete_after_copy
+    delete_after_copy = args.delete_after_copy
     out_dir = create_dir(args.out)
     failed_dir = create_dir(out_dir/'failed')
     suffices = []
@@ -105,8 +107,13 @@ def filtered_by_arguments(file: Path) -> bool:
         return False
     return True
 
+def maybe_delete_file(file:Path):
+    if delete_after_copy:
+        file.unlink()
+        log.info(f'delete {file.resolve()}')
 
-def copy_and_rename_file(filepath=str):
+
+def copy_and_rename_file(filepath:str):
     file = Path(filepath)
     if not filtered_by_arguments(file):
         return
@@ -134,6 +141,7 @@ def copy_and_rename_file(filepath=str):
                 i += 1
         else:
             log.info(f'skip {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
+            maybe_delete_file(file)
             return
 
     copy(file, target_directory)
@@ -141,6 +149,7 @@ def copy_and_rename_file(filepath=str):
         copied_file = target_directory/file.name
         copied_file.rename(target_directory/new_name)
     log.info(f'copy {file.resolve()} -> {(target_directory/new_name).resolve()}')
+    maybe_delete_file(file)
 
 
 if __name__ == "__main__":
@@ -150,6 +159,8 @@ if __name__ == "__main__":
     if args.exclude:
         print(f'Ignoring all files in directories {exclude}')
     prompt_proceed()
+    if delete_after_copy:
+        prompt_proceed('You have chosen to delete your input files after they processed. You are advised to have a backup of your input data when doing this. Are you sure you want to proceed? (y/n)')
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
