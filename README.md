@@ -1,11 +1,11 @@
-# photo_renamer
+# photo_organizer
 Organize your photos by date.
 
 ```
-usage: photo_renamer.py [-h] [--exclude EXCLUDE [EXCLUDE ...]]
-                                      [--suffix SUFFIX [SUFFIX ...]]
-                                      [--prefix PREFIX [PREFIX ...]] --out OUT
-                                      --dir DIR [--log LOG]
+usage: photo_organizer.py [-h] [--exclude EXCLUDE [EXCLUDE ...]]
+                          [--suffix SUFFIX [SUFFIX ...]]
+                          [--prefix PREFIX [PREFIX ...]] --out OUT --dir DIR
+                          [--log LOG] [--delete-after-copy]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -16,9 +16,11 @@ optional arguments:
   --prefix PREFIX [PREFIX ...]
                         Filter on file name prefix
   --out OUT             Output directory path
-  --dir DIR             Working directory path
+  --dir DIR             Input directory path
   --log LOG             Log file path
-
+  --delete-after-copy   Delete the original file after it has been copied and
+                        renamed OR skipped. BACKUP your input before doing
+                        this.
 ```
 
 ## Go from an unorganized mess of photos to something cleaner
