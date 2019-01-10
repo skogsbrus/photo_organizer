@@ -96,16 +96,16 @@ def files_equal(f1:Path, f2:Path) -> bool:
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
-def filtered_by_arguments(file: Path) -> bool:
+def sifted_by_arguments(file: Path) -> bool:
     if file.is_dir():
-        return False
+        return True
     if not any(file.name.startswith(prefix) for prefix in prefices):
-        return False
+        return True
     if not any(file.name.endswith(suffix) for suffix in suffices):
-        return False
+        return True
     if any([ex in str(file.resolve()) for ex in exclude]):
-        return False
-    return True
+        return True
+    return False
 
 
 def maybe_delete_file(file:Path):
@@ -130,7 +130,7 @@ def get_conflict_name(file:Path, target_dir:Path, new_name:str):
 
 def copy_and_rename_file(filepath:str):
     file = Path(filepath)
-    if not filtered_by_arguments(file):
+    if sifted_by_arguments(file):
         return
 
     new_name = get_new_name(file)
@@ -139,12 +139,11 @@ def copy_and_rename_file(filepath:str):
         year = new_name[:4]
         target_dir = out_dir/Path(year)
     else:
-        subfolder_name = str(file.parent.resolve()).replace('/','_')
-        target_dir = failed_dir/(subfolder_name)
+        subdir_name = str(file.parent.resolve()).replace('/','_')
+        target_dir = failed_dir/(subdir_name)
         new_name = file.name
 
-    if not target_dir.is_dir():
-        target_dir.mkdir()
+    target_dir = create_dir(target_dir)
 
     conflict_name = get_conflict_name(file, target_dir, new_name)
     if conflict_name:
@@ -154,9 +153,8 @@ def copy_and_rename_file(filepath:str):
         return
 
     copy(file, target_dir)
-    if file.name != new_name:
-        copied_file = target_dir/file.name
-        copied_file.rename(target_dir/new_name)
+    copied_file = target_dir/file.name
+    copied_file.rename(target_dir/new_name)
     log.info(f'copy {file.resolve()} -> {(target_dir/new_name).resolve()}')
     maybe_delete_file(file)
 
