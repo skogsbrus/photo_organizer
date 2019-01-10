@@ -96,16 +96,17 @@ def files_equal(f1:Path, f2:Path) -> bool:
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
-def filtered_by_arguments(file: Path) -> bool:
+def sifted_by_arguments(file: Path) -> bool:
     if file.is_dir():
-        return False
+        return True
     if not any(file.name.startswith(prefix) for prefix in prefices):
-        return False
+        return True
     if not any(file.name.endswith(suffix) for suffix in suffices):
-        return False
+        return True
     if any([ex in str(file.resolve()) for ex in exclude]):
-        return False
-    return True
+        return True
+    return False
+
 
 def maybe_delete_file(file:Path):
     if delete_after_copy:
@@ -113,42 +114,48 @@ def maybe_delete_file(file:Path):
         log.info(f'delete {file.resolve()}')
 
 
+def get_conflict_name(file:Path, target_dir:Path, new_name:str):
+    i = 1
+    name, extension = splitext(new_name)
+    while (target_dir/new_name).exists():
+        if not files_equal((target_dir/new_name), file):
+            new_name = f'{name}_conflict{i}{extension}'
+            i += 1
+        else:
+            log.info(f'skip {file.resolve()} - duplicate of {(target_dir/new_name).resolve()}')
+            return None
+    return new_name
+
+
+
 def copy_and_rename_file(filepath:str):
     file = Path(filepath)
-    if not filtered_by_arguments(file):
+    if sifted_by_arguments(file):
         return
 
     new_name = get_new_name(file)
 
     if new_name:
         year = new_name[:4]
-        target_directory = out_dir/Path(year)
+        target_dir = out_dir/Path(year)
     else:
-        subfolder_name = str(file.parent.resolve()).replace('/','_')
-        target_directory = failed_dir/(subfolder_name)
+        subdir_name = str(file.parent.resolve()).replace('/','_')
+        target_dir = failed_dir/(subdir_name)
         new_name = file.name
 
-    if not target_directory.is_dir():
-        target_directory.mkdir()
+    target_dir = create_dir(target_dir)
 
-    # check if duplicate file already exists in target directory
-    if (target_directory/new_name).exists():
-        if not files_equal(target_directory/new_name, file):
-            new_filename, extension = splitext(new_name)
-            i = 1
-            while (target_directory/new_name).exists():
-                new_name = f'{new_filename}_collision{i}{extension}'
-                i += 1
-        else:
-            log.info(f'skip {file.resolve()} - duplicate of {(target_directory/new_name).resolve()}')
-            maybe_delete_file(file)
-            return
+    conflict_name = get_conflict_name(file, target_dir, new_name)
+    if conflict_name:
+        new_name = conflict_name
+    else:
+        maybe_delete_file(file)
+        return
 
-    copy(file, target_directory)
-    if file.name != new_name:
-        copied_file = target_directory/file.name
-        copied_file.rename(target_directory/new_name)
-    log.info(f'copy {file.resolve()} -> {(target_directory/new_name).resolve()}')
+    copy(file, target_dir)
+    copied_file = target_dir/file.name
+    copied_file.rename(target_dir/new_name)
+    log.info(f'copy {file.resolve()} -> {(target_dir/new_name).resolve()}')
     maybe_delete_file(file)
 
 
