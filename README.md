@@ -1,5 +1,34 @@
 # photo_organizer
+
 Organize your photos by date.
+
+## Installation
+
+### exiftool
+
+You need [exiftool](https://en.wikipedia.org/wiki/ExifTool) installed in order to read metadata from photos/videos.
+
+On Ubuntu/Debian et al. you can install it with:
+
+```
+sudo apt install exiftool
+```
+
+For other distributions or platforms, please refer to [these instructions](https://web.mit.edu/jhawk/mnt/cgs/Image-ExifTool-6.99/html/install.html).
+
+### photo_organizer
+
+```
+git clone https://github.com/johan-andersson01/photo_organizer.git
+cd photo_organizer
+pipenv shell && pipenv install
+```
+
+## Usage
+
+`photo_organizer` will currently reorganize your photos/videos to directories named by year, inside  of which the files are named by the complete date the photo/video was taken/shot.
+
+There are future plans to also incorporate the geographical location of the photo/video in the file structure; probably as subdirectories for each year.
 
 ```
 usage: photo_organizer.py [-h] [--exclude EXCLUDE [EXCLUDE ...]]
