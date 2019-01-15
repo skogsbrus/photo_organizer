@@ -7,6 +7,8 @@ verify_ssl = true
 
 [packages]
 pyexifinfo = "*"
+numpy = "*"
+gdal = "==2.2.3"
 
 [requires]
 python_version = "3.6"

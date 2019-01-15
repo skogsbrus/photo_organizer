@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import concurrent.futures
+import countries
 import sys
 import argparse
 import logging as log
@@ -20,6 +21,7 @@ def get_args():
     parser.add_argument('--dir',                type=Path,  required=True,                                                                      help='Input directory path')
     parser.add_argument('--log',                type=Path,                                                                                      help='Log file path')
     parser.add_argument('--delete-after-copy',  action='store_true',                                                                            help='Delete the original file after it has been copied and renamed OR skipped. BACKUP your input before doing this.')
+    parser.add_argument('--use-gps', action='store_true', help='Restructure files such that photos/videos are grouped by country of origin.')
     return parser.parse_args()
 
 
@@ -28,12 +30,13 @@ def setup_args(args):
     if args.log:
         setup_log_file(args.log)
 
-    global out_dir, failed_dir, prefices, suffices, exclude, delete_after_copy
+    global out_dir, failed_dir, prefices, suffices, exclude, delete_after_copy, use_gps
     delete_after_copy = args.delete_after_copy
     out_dir = create_dir(args.out)
     failed_dir = create_dir(out_dir/'failed')
     suffices = []
     prefices = args.prefix
+    use_gps = args.use_gps
     for suf in args.suffix:
         suffices.extend([suf.lower(), suf.upper()])
     exclude = args.exclude
@@ -43,13 +46,61 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def parse_date_from_metadata(path:Path, keys:list) -> str:
+def parse_key_from_metadata(path:Path, keys:list) -> str:
     metadata = get_json(path)[0]
 
     for key in keys:
         if key in metadata:
             return str(metadata[key])
     raise KeyError
+
+
+def run_parse_funcs(parse_funcs: list, errors: tuple):
+    for func in parse_funcs:
+        try:
+            return func()
+        except errors:
+            pass
+    return None
+
+
+def parse_coordinate(degrees: str) -> float:
+     def is_number(w):
+         try:
+             float(w)
+             return True
+         except ValueError:
+             return False
+
+     def degree_to_dec(deg_min_sec: tuple) -> float: 
+         assert len(deg_min_sec) == 3
+         deg, minute, second = map(float, deg_min_sec)
+         return deg + minute/60 + second/3600
+
+     words = degrees.split(' ')
+     words = list(map(lambda w: re.sub('[^0-9\.]', '', w), words)) 
+     nums = list(filter(is_number, words)) 
+     latitude, longitude = nums[0:3], nums[3:]
+
+     return list(map(degree_to_dec, (latitude, longitude)))
+
+
+def get_country(path: Path) -> str:
+    metadata_keys = [
+        'Composite:GPSPosition'
+    ]
+
+    parse_funcs = [
+        lambda: parse_coordinate(parse_key_from_metadata(path, metadata_keys))
+    ]
+    
+    coords = run_parse_funcs(parse_funcs, (AssertionError, KeyError))
+
+    if not coords:
+        return 'Unknown location'
+
+    cc = countries.CountryChecker('TM_WORLD_BORDERS-0.3.shp')
+    return str(cc.getCountry(countries.Point(coords[0], coords[1])))
 
 
 def get_date(path: Path) -> str:
@@ -60,15 +111,10 @@ def get_date(path: Path) -> str:
     ]
 
     parse_funcs = [
-        lambda: parse_date_from_metadata(path, metadata_keys),
+        lambda: parse_key_from_metadata(path, metadata_keys),
     ]
 
-    for func in parse_funcs:
-        try:
-            return func()
-        except (KeyError, ValueError, OverflowError):
-            pass
-    return None
+    return run_parse_funcs(parse_funcs, (KeyError, ValueError, OverflowError))
 
 
 def get_new_name(file: Path) -> str:
@@ -137,7 +183,12 @@ def copy_and_rename_file(filepath:str):
 
     if new_name:
         year = new_name[:4]
-        target_dir = out_dir/Path(year)
+        if use_gps:
+            country = get_country(file)
+            year_dir = create_dir(out_dir/year)
+            target_dir = year_dir/country
+        else:
+            target_dir = out_dir/year
     else:
         subdir_name = str(file.parent.resolve()).replace('/','_')
         target_dir = failed_dir/(subdir_name)
@@ -172,4 +223,5 @@ if __name__ == "__main__":
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
         executor.map(copy_and_rename_file, files)
+    #list(map(copy_and_rename_file, files))
     log.info('end of main')
