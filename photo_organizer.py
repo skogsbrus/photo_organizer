@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import pyexiv2
 import concurrent.futures
 import countries
 import sys
@@ -21,7 +21,8 @@ def get_args():
     parser.add_argument('--dir',                type=Path,  required=True,                                                                      help='Input directory path')
     parser.add_argument('--log',                type=Path,                                                                                      help='Log file path')
     parser.add_argument('--delete-after-copy',  action='store_true',                                                                            help='Delete the original file after it has been copied and renamed OR skipped. BACKUP your input before doing this.')
-    parser.add_argument('--use-gps', action='store_true', help='Restructure files such that photos/videos are grouped by country of origin.')
+    parser.add_argument('--organize-by-location', action='store_true', help='Reorganize files such that photos/videos are grouped by country of origin.')
+    parser.add_argument('--add-location-tag', action='store_true', help='Add country of origin as an EXIF user comment tag')
     return parser.parse_args()
 
 
@@ -30,13 +31,14 @@ def setup_args(args):
     if args.log:
         setup_log_file(args.log)
 
-    global out_dir, failed_dir, prefices, suffices, exclude, delete_after_copy, use_gps
+    global out_dir, failed_dir, prefices, suffices, exclude, delete_after_copy, organize_by_location, add_location_tag
     delete_after_copy = args.delete_after_copy
     out_dir = create_dir(args.out)
     failed_dir = create_dir(out_dir/'failed')
     suffices = []
     prefices = args.prefix
-    use_gps = args.use_gps
+    add_location_tag = args.add_location_tag
+    organize_by_location = args.organize_by_location
     for suf in args.suffix:
         suffices.extend([suf.lower(), suf.upper()])
     exclude = args.exclude
@@ -173,6 +175,12 @@ def get_conflict_name(file:Path, target_dir:Path, new_name:str):
     return new_name
 
 
+def add_exif_tag(path:Path, value:str, key:str='Exif.Photo.Usercomment') -> None:
+    metadata = pyexiv2.ImageMetadata(path)
+    metadata.read()
+    metadata[key] = value
+    metadata.write()
+
 
 def copy_and_rename_file(filepath:str):
     file = Path(filepath)
@@ -183,7 +191,7 @@ def copy_and_rename_file(filepath:str):
 
     if new_name:
         year = new_name[:4]
-        if use_gps:
+        if organize_by_location:
             country = get_country(file)
             year_dir = create_dir(out_dir/year)
             target_dir = year_dir/country
@@ -206,8 +214,11 @@ def copy_and_rename_file(filepath:str):
     copy(file, target_dir)
     copied_file = target_dir/file.name
     copied_file.rename(target_dir/new_name)
+    copied_file = target_dir/new_name
     log.info(f'copy {file.resolve()} -> {(target_dir/new_name).resolve()}')
     maybe_delete_file(file)
+    if add_location_tag and country != 'Unknown location':
+        add_exif_tag(copied_file, country)
 
 
 if __name__ == "__main__":
@@ -222,6 +233,6 @@ if __name__ == "__main__":
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
-        executor.map(copy_and_rename_file, files)
-    #list(map(copy_and_rename_file, files))
+        #executor.map(copy_and_rename_file, files)
+    list(map(copy_and_rename_file, files))
     log.info('end of main')
