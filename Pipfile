@@ -9,6 +9,7 @@ verify_ssl = true
 pyexifinfo = "*"
 numpy = "*"
 gdal = "==2.2.3"
+"py3exiv2" = "*"
 
 [requires]
 python_version = "3.6"

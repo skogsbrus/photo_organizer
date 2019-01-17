@@ -14,6 +14,27 @@ On Ubuntu/Debian et al. you can install it with:
 sudo apt install exiftool
 ```
 
+### GDAL
+
+GDAL is needed for parsing GPS coordinates. On Ubuntu/Debian et al. you can install it with:
+
+```
+sudo apt-get install gdal-bin
+sudo apt-get install libgdal-dev libgdal1h
+```
+
+### py3exiv2
+
+The following are dependencies for py3exiv2.
+
+
+```
+sudo apt install build-essential
+sudo apt install python-all-dev
+sudo apt install libexiv2-dev
+sudo apt install libboost-python-dev
+```
+
 For other distributions or platforms, please refer to [these instructions](https://web.mit.edu/jhawk/mnt/cgs/Image-ExifTool-6.99/html/install.html).
 
 ### photo_organizer
@@ -21,7 +42,9 @@ For other distributions or platforms, please refer to [these instructions](https
 ```
 git clone https://github.com/johan-andersson01/photo_organizer.git
 cd photo_organizer
-pipenv shell && pipenv install
+pipenv shell 
+pipenv install GDAL==$(gdal-config --version) --global-option=build_ext --global-option="-I/usr/include/gdal"
+pipenv install
 ```
 
 ## Usage

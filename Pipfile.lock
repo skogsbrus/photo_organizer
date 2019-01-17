@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ef8e543688f9bd6a2255b0522df0f1a8801bf3d166d491a997b239e5cc94bf0b"
+            "sha256": "f4f2ff7284b9c5a3ea7f40c34030dd803b4dd355179de0c898e7df0d20188222"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,6 +16,13 @@
         ]
     },
     "default": {
+        "gdal": {
+            "hashes": [
+                "sha256:561a952394bc1d9291179a8677eb6f5dafbf3e361c851f3dbb59db604c9b8e8b"
+            ],
+            "index": "pypi",
+            "version": "==2.2.3"
+        },
         "numpy": {
             "hashes": [
                 "sha256:00a458d6821b1e87be873f2126d5646b901047a7480e8ae9773ecf214f0e19f3",
@@ -44,6 +51,13 @@
             ],
             "index": "pypi",
             "version": "==1.16.0"
+        },
+        "py3exiv2": {
+            "hashes": [
+                "sha256:4042492db49efbdfc53e0afa89509695826b3fb74fb52444ed04f64c229a65f5"
+            ],
+            "index": "pypi",
+            "version": "==0.4.0"
         },
         "pyexifinfo": {
             "hashes": [
