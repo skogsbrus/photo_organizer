@@ -183,40 +183,40 @@ def add_exif_tag(path:Path, value:str, key:str='Exif.Photo.Usercomment') -> None
 
 
 def copy_and_rename_file(filepath:str):
-    file = Path(filepath)
-    if sifted_by_arguments(file):
+    f = Path(filepath)
+    if sifted_by_arguments(f):
         return
 
-    new_name = get_new_name(file)
+    new_name = get_new_name(f)
 
     if new_name:
         year = new_name[:4]
         if organize_by_location:
-            country = get_country(file)
+            country = get_country(f)
             year_dir = create_dir(out_dir/year)
             target_dir = year_dir/country
         else:
             target_dir = out_dir/year
     else:
-        subdir_name = str(file.parent.resolve()).replace('/','_')
+        subdir_name = str(f.parent.resolve()).replace('/','_')
         target_dir = failed_dir/(subdir_name)
-        new_name = file.name
+        new_name = f.name
 
     target_dir = create_dir(target_dir)
 
-    conflict_name = get_conflict_name(file, target_dir, new_name)
+    conflict_name = get_conflict_name(f, target_dir, new_name)
     if conflict_name:
         new_name = conflict_name
     else:
-        maybe_delete_file(file)
+        maybe_delete_file(f)
         return
 
-    copy(file, target_dir)
-    copied_file = target_dir/file.name
+    copy(f, target_dir)
+    copied_file = target_dir/f.name
     copied_file.rename(target_dir/new_name)
     copied_file = target_dir/new_name
-    log.info(f'copy {file.resolve()} -> {(target_dir/new_name).resolve()}')
-    maybe_delete_file(file)
+    log.info(f'copy {f.resolve()} -> {(target_dir/new_name).resolve()}')
+    maybe_delete_file(f)
     if add_location_tag and country != 'Unknown location':
         add_exif_tag(copied_file, country)
 

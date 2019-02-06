@@ -10,6 +10,7 @@ pyexifinfo = "*"
 numpy = "*"
 gdal = "==2.2.3"
 "py3exiv2" = "*"
+nominatim = "*"
 
 [requires]
 python_version = "3.6"
