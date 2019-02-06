@@ -6,25 +6,66 @@ import argparse
 import logging as log
 import glob
 from pathlib import Path
-from shutil import copy, SameFileError
-import re
+from shutil import copy
 from os.path import splitext
 from pyexifinfo import get_json
 
+
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exclude',            type=str,   nargs='+',      default=[],                                                         help='Exclude paths containing any of these strings')
-    parser.add_argument('--suffix',             type=str,   nargs='+',      default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],  help='Filter on file name suffix')
-    parser.add_argument('--prefix',             type=str,   nargs='+',      default=[''],                                                       help='Filter on file name prefix')
-    parser.add_argument('--out',                type=Path,  required=True,  default='./restructured',                                           help='Output  directory path')
-    parser.add_argument('--dir',                type=Path,  required=True,                                                                      help='Input directory path')
-    parser.add_argument('--log',                type=Path,                                                                                      help='Log file path')
-    parser.add_argument('--delete-after-copy',  action='store_true',                                                                            help='Delete the original file after it has been copied and renamed OR skipped. BACKUP your input before doing this.')
+    parser.add_argument(
+        '--exclude',
+        type=str,
+        nargs='+',
+        default=[],
+        help='Exclude paths containing any of these strings'
+    )
+    parser.add_argument(
+        '--suffix',
+        type=str,
+        nargs='+',
+        default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4'],
+        help='Filter on file name suffix'
+    )
+    parser.add_argument(
+        '--prefix',
+        type=str,
+        nargs='+',
+        default=[''],
+        help='Filter on file name prefix'
+    )
+    parser.add_argument(
+        '--out',
+        type=Path,
+        required=True,
+        default='./restructured',
+        help='Output  directory path'
+    )
+    parser.add_argument(
+        '--dir',
+        type=Path,
+        required=True,
+        help='Input directory path'
+    )
+    parser.add_argument(
+        '--log',
+        type=Path,
+        help='Log file path'
+    )
+    parser.add_argument(
+        '--delete-after-copy',
+        action='store_true',
+        help=(
+                'Delete the original file after it'
+                ' has been copied and renamed OR skipped.'
+                ' BACKUP your input before doing this.'
+             )
+    )
     return parser.parse_args()
 
 
 def setup_args(args):
-    assert args.out.parent != args.dir, 'Output directory should not be put inside the input directory'
+    assert args.out.parent != args.dir, 'Output directory can not be inside the input directory'
     if args.log:
         setup_log_file(args.log)
 
@@ -43,7 +84,7 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def parse_date_from_metadata(path:Path, keys:list) -> str:
+def parse_date_from_metadata(path: Path, keys: list) -> str:
     metadata = get_json(path)[0]
 
     for key in keys:
@@ -84,7 +125,7 @@ def prompt_proceed(msg='Proceed? (y/n)'):
         sys.exit(0)
 
 
-def create_dir(directory:Path) -> Path:
+def create_dir(directory: Path) -> Path:
     try:
         directory.mkdir()
     except FileExistsError:
@@ -92,7 +133,7 @@ def create_dir(directory:Path) -> Path:
     return directory
 
 
-def files_equal(f1:Path, f2:Path) -> bool:
+def files_equal(f1: Path, f2: Path) -> bool:
     return open(f1, 'rb').read() == open(f2, 'rb').read()
 
 
@@ -108,13 +149,13 @@ def sifted_by_arguments(file: Path) -> bool:
     return False
 
 
-def maybe_delete_file(file:Path):
+def maybe_delete_file(file: Path):
     if delete_after_copy:
         file.unlink()
         log.info(f'delete {file.resolve()}')
 
 
-def get_conflict_name(file:Path, target_dir:Path, new_name:str):
+def get_conflict_name(file: Path, target_dir: Path, new_name: str):
     i = 1
     name, extension = splitext(new_name)
     while (target_dir/new_name).exists():
@@ -127,8 +168,7 @@ def get_conflict_name(file:Path, target_dir:Path, new_name:str):
     return new_name
 
 
-
-def copy_and_rename_file(filepath:str):
+def copy_and_rename_file(filepath: str):
     file = Path(filepath)
     if sifted_by_arguments(file):
         return
@@ -139,7 +179,7 @@ def copy_and_rename_file(filepath:str):
         year = new_name[:4]
         target_dir = out_dir/Path(year)
     else:
-        subdir_name = str(file.parent.resolve()).replace('/','_')
+        subdir_name = str(file.parent.resolve()).replace('/', '_')
         target_dir = failed_dir/(subdir_name)
         new_name = file.name
 
@@ -167,7 +207,11 @@ if __name__ == "__main__":
         print(f'Ignoring all files in directories {exclude}')
     prompt_proceed()
     if delete_after_copy:
-        prompt_proceed('You have chosen to delete your input files after they processed. You are advised to have a backup of your input data when doing this. Are you sure you want to proceed? (y/n)')
+        prompt_proceed((
+            'You have chosen to delete your input files after they processed.'
+            'You are advised to have a backup of your input data when doing this.'
+            'Are you sure you want to proceed? (y/n)'
+        ))
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         files = glob.iglob(f'{args.dir}/**/*', recursive=True)
