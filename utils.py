@@ -89,4 +89,4 @@ def get_unique_name(f: Path, target_dir: Path, new_name: str) -> (str, bool):
         else:
             log.info(f'skip {f.resolve()} - duplicate of {(target_dir/new_name).resolve()}')
             raise FileExistsError
-    return new_name 
+    return new_name
