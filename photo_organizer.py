@@ -133,8 +133,20 @@ def create_dir(directory: Path) -> Path:
     return directory
 
 
-def files_equal(f1: Path, f2: Path) -> bool:
-    return open(f1, 'rb').read() == open(f2, 'rb').read()
+def files_equal(fp1: Path, fp2: Path, chunk_sz=2**24) -> bool:
+    with open(fp1, 'rb') as f1:
+        with open(fp2, 'rb') as f2:
+            while True:
+                chunk1 = f1.read(chunk_sz)
+                chunk2 = f2.read(chunk_sz)
+                f1.seek(chunk_sz, 1)
+                f2.seek(chunk_sz, 1)
+                if chunk1 != chunk2:
+                    return False
+                if not chunk1 or not chunk2:
+                    assert not chunk1 and not chunk2
+                    break
+    return True
 
 
 def sifted_by_arguments(file: Path) -> bool:
