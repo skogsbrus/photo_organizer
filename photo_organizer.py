@@ -26,7 +26,7 @@ def get_args():
         '--suffix',
         type=str,
         nargs='+',
-        default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4', '.flv', '.mkv'],
+        default=['.avi', '.png', '.jpg', '.jpeg', '.raw', '.mov', '.mp4', '.flv', '.mkv', '.webp'],
         help='Filter on file name suffix. Case insensitive.'
     )
     parser.add_argument(
