@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-
-import sys
-import argparse
-import logging as log
-import glob
+from os.path import splitext
 from pathlib import Path
 from shutil import copy
-from os.path import splitext
-from pyexifinfo import get_json
 from threading import Thread, Lock
-import subprocess
+from typing import Optional
+
+import argparse
+import glob
+import logging as log
+import sys
+
+from pyexifinfo import get_json
 
 
 def get_args():
@@ -96,7 +97,7 @@ def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
 
-def parse_date_from_metadata(path: str, keys: list) -> str:
+def parse_date_from_metadata(path: str, keys: list) -> Optional[str]:
     metadata = get_json(path)[0]
 
     for key in keys:
@@ -105,7 +106,7 @@ def parse_date_from_metadata(path: str, keys: list) -> str:
     raise KeyError
 
 
-def get_date(path: str) -> str:
+def get_date(path: str) -> Optional[str]:
     metadata_keys = [
         'EXIF:DateTimeOriginal',
         'MakerNotes:DateTimeOriginal',
@@ -124,7 +125,7 @@ def get_date(path: str) -> str:
     return None
 
 
-def get_new_name(fp: str) -> str:
+def get_new_name(fp: str) -> Optional[str]:
     date = get_date(fp)
     _, ext = splitext(fp)
     if date:
@@ -207,7 +208,7 @@ def get_conflict_name(f: str, target_dir: str, new_name: str):
 
 def copy_and_rename_file(src_str: str):
     src_path = Path(src_str)
-    if sifted_by_arguments(src_path):
+    if sifted_by_arguments(src_str):
         return
 
     new_name = get_new_name(src_str)
@@ -294,7 +295,7 @@ if __name__ == "__main__":
         prompt_proceed()
         if delete_after_copy:
             prompt_proceed((
-                'You have chosen to delete your input files after they processed.'
+                'You have chosen to delete your input files after they are processed.'
                 'You are advised to have a backup of your input data when doing this.'
                 'Are you sure you want to proceed? (y/n)'
             ))
