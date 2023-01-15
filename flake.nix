@@ -33,22 +33,27 @@
             };
 
             nativeBuildInputs = [
-              exiftool
               setuptools
             ];
+
+            postPatch = ''
+              substituteInPlace pyexifinfo/pyexifinfo.py \
+                --replace "exiftool" "${exiftool}/bin/exiftool"
+            '';
+
+            propagatedNativeBuildInputs = [ exiftool ];
 
             src = fetchPypi {
               inherit pname version;
               sha256 = "sha256-V4s0s8WT/ne75rYliPny7GedymP31IYUjJpv8f3Uvck=";
             };
           };
+        myPython = python310.withPackages (ps: with ps; [ pyexifinfo ]);
       in
       {
         devShell = mkShell {
           buildInputs = [
-            exiftool
-            pyexifinfo
-            python310
+            myPython
           ];
         };
       }
