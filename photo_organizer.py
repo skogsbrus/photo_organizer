@@ -92,18 +92,6 @@ def setup_args(args):
     exclude = args.exclude
 
 
-def synology_log(msg, level, include_log_hint=False):
-    err_msg = "photo_organizer.py: {}. ".format(msg)
-    if include_log_hint:
-        log_hint = "See {} for more information".format(str(Path(args.log).resolve()))
-    else:
-        log_hint = ""
-    try:
-        subprocess.call(["synologset1", "sys", level, "0x11800000", err_msg + log_hint])
-    except FileNotFoundError:
-        pass
-
-
 def setup_log_file(filename):
     log.basicConfig(filename=filename, level=log.INFO, format='%(asctime)s %(message)s')
 
@@ -279,7 +267,6 @@ class Copier(Thread):
             if err:
                 err_msg = "Thread {} returning: global error was set".format(self.index)
                 log.warning(err_msg)
-                synology_log(err_msg, 'err')
                 return
 
             # catch all errors and set global error if they occur
@@ -291,7 +278,6 @@ class Copier(Thread):
                 mut_global.release()
                 err_msg = "Thread {} raised an exception: ".format(self.index)
                 log.warning(err_msg, exc_info=e)
-                synology_log(err_msg + str(e), 'err')
 
 
 if __name__ == "__main__":
@@ -324,5 +310,4 @@ if __name__ == "__main__":
     for t in threads:
         t.join()
 
-    synology_log("End of main", 'info', include_log_hint=True)
     log.info("End of main")
