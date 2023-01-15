@@ -20,8 +20,22 @@ For other distributions or platforms, please refer to [these instructions](https
 
 ```
 git clone https://github.com/johan-andersson01/photo_organizer.git
+```
+
+#### Nix flakes
+
+```
 cd photo_organizer
-pipenv shell && pipenv install
+echo "use flake" >> .envrc
+python3 photo_organizer.py -h
+```
+
+#### Other
+
+```
+cd photo_organizer
+pip install pyexiftool
+python3 photo_organizer.py -h
 ```
 
 ## Usage
